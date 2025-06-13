@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 03, 2025 at 06:45 PM
+-- Generation Time: Jun 13, 2025 at 02:51 AM
 -- Server version: 5.7.17
 -- PHP Version: 5.6.30
 
@@ -35,7 +35,8 @@ CREATE TABLE `anote_cliente` (
   `monto` decimal(10,2) NOT NULL,
   `descripcion` text,
   `fecha` date NOT NULL,
-  `estado` enum('pendiente','pagado') NOT NULL DEFAULT 'pendiente'
+  `estado` int(11) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -46,11 +47,12 @@ CREATE TABLE `anote_cliente` (
 
 CREATE TABLE `caja` (
   `id` int(11) NOT NULL,
-  `cancha_id` int(11) NOT NULL,
-  `fecha` date NOT NULL,
+  `cierre` datetime NOT NULL,
   `usuario_id` int(11) NOT NULL,
   `total` decimal(10,2) NOT NULL,
-  `observaciones` text
+  `observaciones` text,
+  `sucursal` int(11) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -61,7 +63,23 @@ CREATE TABLE `caja` (
 
 CREATE TABLE `cancha` (
   `id` int(11) NOT NULL,
-  `locacion` varchar(100) NOT NULL
+  `tipo` int(11) NOT NULL,
+  `id_sucursal` int(11) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gastos`
+--
+
+CREATE TABLE `gastos` (
+  `id` int(11) NOT NULL,
+  `monto` decimal(10,2) NOT NULL,
+  `tipo` int(11) NOT NULL,
+  `observacion` varchar(500) NOT NULL,
+  `id_sucursal` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -73,7 +91,8 @@ CREATE TABLE `cancha` (
 CREATE TABLE `jugador` (
   `id` int(11) NOT NULL,
   `persona_id` int(11) NOT NULL,
-  `turno_id` int(11) NOT NULL
+  `turno_id` int(11) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -137,9 +156,36 @@ CREATE TABLE `rol` (
 
 CREATE TABLE `stock` (
   `id` int(11) NOT NULL,
-  `cancha_id` int(11) NOT NULL,
   `producto_id` int(11) NOT NULL,
-  `cantidad` int(11) NOT NULL
+  `cantidad` int(11) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1',
+  `id_sucursal` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sucursal`
+--
+
+CREATE TABLE `sucursal` (
+  `id` int(11) NOT NULL,
+  `locacion` varchar(500) NOT NULL,
+  `nombre` varchar(500) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `tipo_cancha`
+--
+
+CREATE TABLE `tipo_cancha` (
+  `id` int(11) NOT NULL,
+  `cantidad_jugadores` int(11) NOT NULL,
+  `precio` decimal(10,2) DEFAULT NULL,
+  `activo` tinyint(1) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -153,7 +199,9 @@ CREATE TABLE `turno` (
   `cancha_id` int(11) NOT NULL,
   `empleado_id` int(11) NOT NULL,
   `fecha` datetime NOT NULL,
-  `fijo` tinyint(1) NOT NULL DEFAULT '0'
+  `fijo` tinyint(1) NOT NULL DEFAULT '0',
+  `activo` tinyint(1) DEFAULT '1',
+  `estado` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -166,8 +214,11 @@ CREATE TABLE `turno_fijo_cliente` (
   `id` int(11) NOT NULL,
   `persona_id` int(11) DEFAULT NULL,
   `cancha_id` int(11) DEFAULT NULL,
+  `dia_de_la_semana` int(7) NOT NULL,
+  `hora_de_juego` time NOT NULL,
   `cantidad_jugados` int(11) DEFAULT NULL,
-  `recompensa_entregada` tinyint(1) DEFAULT NULL
+  `recompensa_entregada` tinyint(1) DEFAULT NULL,
+  `activo` tinyint(1) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 -- --------------------------------------------------------
@@ -200,8 +251,10 @@ CREATE TABLE `venta` (
   `producto_id` int(11) NOT NULL,
   `usuario` int(11) DEFAULT NULL,
   `metodo_pago_id` int(11) NOT NULL,
+  `precio_producto` decimal(10,2) NOT NULL,
   `estado` int(11) NOT NULL,
-  `fecha` datetime NOT NULL
+  `fecha` datetime NOT NULL,
+  `activo` tinyint(1) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -221,14 +274,23 @@ ALTER TABLE `anote_cliente`
 --
 ALTER TABLE `caja`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `cancha_id` (`cancha_id`),
-  ADD KEY `usuario_id` (`usuario_id`);
+  ADD KEY `usuario_id` (`usuario_id`),
+  ADD KEY `fk_caja_sucursal` (`sucursal`);
 
 --
 -- Indexes for table `cancha`
 --
 ALTER TABLE `cancha`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_cancha_tipo` (`tipo`),
+  ADD KEY `fk_cancha_sucursal` (`id_sucursal`);
+
+--
+-- Indexes for table `gastos`
+--
+ALTER TABLE `gastos`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `id_sucursal` (`id_sucursal`);
 
 --
 -- Indexes for table `jugador`
@@ -267,8 +329,20 @@ ALTER TABLE `rol`
 --
 ALTER TABLE `stock`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `cancha_id` (`cancha_id`),
-  ADD KEY `producto_id` (`producto_id`);
+  ADD KEY `producto_id` (`producto_id`),
+  ADD KEY `fk_stock_sucursal` (`id_sucursal`);
+
+--
+-- Indexes for table `sucursal`
+--
+ALTER TABLE `sucursal`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `tipo_cancha`
+--
+ALTER TABLE `tipo_cancha`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `turno`
@@ -351,6 +425,16 @@ ALTER TABLE `rol`
 -- AUTO_INCREMENT for table `stock`
 --
 ALTER TABLE `stock`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- AUTO_INCREMENT for table `sucursal`
+--
+ALTER TABLE `sucursal`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- AUTO_INCREMENT for table `tipo_cancha`
+--
+ALTER TABLE `tipo_cancha`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 --
 -- AUTO_INCREMENT for table `turno`
